@@ -21,6 +21,11 @@ void ofApp::setup() {
 	// where our rays start on the perspective view
 	viewpoint = {0, 0, 1};
 	
+	// light settings: position, color and intensity
+	li_position = {0, 5, 0};
+	li_color = ofColor(255, 255, 255);
+	ka = 0.2; // intensity
+	
 	// Background color
 	Background_color = ofColor(146, 219, 212);
 	
@@ -45,12 +50,8 @@ void ofApp::setup() {
 	// Ellipsoid: Blue (0, 0, 1) in z > 0 between z=1 and view plane z = 0
 	scene.push_back(new Ellipsoid(Vec3(0, 0.4, 0.4), Vec3(0.2, 0.1, 0.3), ofColor(0, 0, 255)));
 	
-	/*
-	scene.push_back(new Plane(Vec3(0, -1.4, 0), Vec3(0, 1, 0), ofColor(0.5, 0.5, 0.5)));
-	scene.push_back(new Sphere(Vec3(1, 1.2, -3), 1.0, ofColor(1, 0, 0)));
-	scene.push_back(new Ellipsoid(Vec3(-5, 0, -4), Vec3(2, 3, 1), ofColor(0, 1, 0)));
-	scene.push_back(new Cube(Vec3(3.5, 3, -3), 2.0, 2.0, 2.0, ofColor(0, 0, 1)));
-	 */
+	// Ellipsoid: Blue (0, 0, 1) in z > 0 and outside range x:[-2,2], y:[-1.5,1.5]
+	scene.push_back(new Ellipsoid(Vec3(-4, 2, -3), Vec3(1, 2, 1), ofColor(0, 0, 255)));
 	
 	colorPixels.allocate(w, h, OF_PIXELS_RGB);
 	texColor.allocate(colorPixels);
@@ -85,9 +86,31 @@ void ofApp::traceAll(){
 				}
 			}
 			
+			// apply light or shadow to the pixel depending of the point of intersection and the normal in that point
+			// data in HitRecord -------> I * (ka + kd * max(0, n.l))
 			if(hit_object){
-				// if theres an object, we color the pixel with the shape color
-				colorPixels.setColor(x, y, closest_hit.color);
+				// if theres an object, we color the pixel with the shape color + light
+				
+				// trace a vector from hit point, to light and normalize it
+				Vec3 li_dir = vec3_subtraction(li_position, closest_hit.p);
+				Vec3 l = vec3_normal(li_dir);
+				
+				// normal from the hit point in the shape
+				Vec3 n = closest_hit.normal;
+				
+				float nl_dot = vec3_dotproduct(n, l);
+				// diffuse gives us a proportion for how many ligth should we have
+				float diffuse = fmax(0.0f, nl_dot); // we cannot have negative lightning
+				
+				float intensity = ka + diffuse;
+				
+				// we ajust the pixel color depending on the intensity
+				ofColor pixel_color;
+				pixel_color.r = ofClamp(closest_hit.color.r * intensity, 0, li_color[0]);
+				pixel_color.g = ofClamp(closest_hit.color.g * intensity, 0, li_color[1]);
+				pixel_color.b = ofClamp(closest_hit.color.b * intensity, 0, li_color[2]);
+					
+				colorPixels.setColor(x, y, pixel_color);
 			}
 			else{
 				// if there isnt an object, we color the pixel as the background

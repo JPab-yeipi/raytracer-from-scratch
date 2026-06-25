@@ -29,11 +29,18 @@ class ofApp : public ofBaseApp{
 
 		ofTexture 			texColor;
 		ofPixels 			colorPixels;
-
+		
+		// CAMERA
 		int 				w, h;
 		Vec3				viewpoint;
 		Camera				cam;
+	
+		// OBJECTS
 		vector<Object3D*> 	scene;
 		ofColor				Background_color;
-
+	
+		// LIGHT
+		Vec3				li_position;
+		ofColor				li_color;
+		double				ka; //intensity coeficient for light
 };
