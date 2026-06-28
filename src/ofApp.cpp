@@ -27,7 +27,7 @@ void ofApp::setup() {
 	ka = 0.2; // intensity
 	
 	// Background color
-	Background_color = ofColor(146, 219, 212);
+	Background_color = ofColor(0, 0, 0);
 	
 	// screen ranges for x and y
 	vector<float> range_x = {-2, 2};
@@ -124,7 +124,7 @@ void ofApp::traceAll(){
 	// we end time measurement
 	auto end = chrono::high_resolution_clock::now();
 	chrono::duration<double> diff = end - start;
-	cout << "Render time: " << diff.count() << " seconds" << endl;
+	r_time = to_string(diff.count());
 }
 
 
@@ -137,6 +137,24 @@ void ofApp::update() {
 void ofApp::draw() {
 	ofSetHexColor(0xffffff);
 	texColor.draw(0, 0, w, h);
+	
+	// text color
+	ofSetColor(ofColor::white);
+		
+	// render time and hardware info displayed on screen
+	string full_info = "render time: " + r_time + " s. " + "\nHardware: Apple M1 (8-Core) / 8 GB RAM";
+	
+	// show camera mode info on screen
+	if(cam.p_mode){
+		full_info += "\n" + cam_info[1];
+	}
+	else{
+		full_info += "\n" + cam_info[0];
+	}
+	
+	// show render time and Hardware info (string, x, y)
+	ofDrawBitmapString(full_info, 10, 10);
+
 }
 
 //--------------------------------------------------------------
@@ -149,8 +167,13 @@ void ofApp::exit() {
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key) {
+	
+	// toggle between perspective and parallel rays
 	if(key == 'p'){
-		cout << "Projection Mode Activated " << endl;
+		// alternate mode
+		cam.p_mode = !cam.p_mode;
+		
+		traceAll();
 	}
 
 }

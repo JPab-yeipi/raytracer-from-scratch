@@ -27,20 +27,23 @@ class ofApp : public ofBaseApp{
 		void dragEvent(ofDragInfo dragInfo);
 		void gotMessage(ofMessage msg);
 
-		ofTexture 			texColor;
-		ofPixels 			colorPixels;
+		ofTexture 				texColor;
+		ofPixels 				colorPixels;
+	
+		string 					r_time; //render time
 		
 		// CAMERA
-		int 				w, h;
-		Vec3				viewpoint;
-		Camera				cam;
+		int 					w, h;
+		Vec3					viewpoint;
+		Camera					cam;
+		const vector<string> 	cam_info = {"Parallel mode", "Perspective mode"};
 	
 		// OBJECTS
-		vector<Object3D*> 	scene;
-		ofColor				Background_color;
+		vector<Object3D*> 		scene;
+		ofColor					Background_color;
 	
 		// LIGHT
-		Vec3				li_position;
-		ofColor				li_color;
-		double				ka; //intensity coeficient for light
+		Vec3					li_position;
+		ofColor					li_color;
+		double					ka; //intensity coeficient for light
 };
