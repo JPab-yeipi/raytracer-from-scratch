@@ -278,6 +278,79 @@ inline Mat4 mat4_inverse(const Mat4& mat){
 	return inv;
 }
 
+// TRANSFORMATIONS ------------------------------------------------------------------------------------------------------------------
+
+inline Mat4 mat4_translation(double tx, double ty, double tz) {
+	Mat4 mat; // starts as an identity matrix
+	
+	// apply translation
+	mat[0][3] = tx;
+	mat[1][3] = ty;
+	mat[2][3] = tz;
+	
+	return mat;
+}
+
+inline Mat4 mat4_scale(double sx, double sy, double sz) {
+	Mat4 mat; // starts as identity matrix
+	
+	// apply scaling
+	mat[0][0] = sx;
+	mat[1][1] = sy;
+	mat[2][2] = sz;
+	mat[3][3] = 1.0;
+	
+	return mat;
+}
+
+// Rotation over x
+inline Mat4 mat4_rotationX(double angleX) {
+	double rad = ofDegToRad(angleX); // turn degrees to radians
+	
+	// starts as identity matrix
+	Mat4 mat;
+	
+	// apply rotation on x
+	mat[1][1] = cos(rad);
+	mat[1][2] = -sin(rad);
+	mat[2][1] = sin(rad);
+	mat[2][2] = cos(rad);
+	
+	return mat;
+}
+
+// Rotation over y
+inline Mat4 mat4_rotationY(double angleY) {
+	double rad = ofDegToRad(angleY); // turn degrees to radians
+	
+	// starts as identity matrix
+	Mat4 mat;
+	
+	// apply rotation on y
+	mat[0][0] = cos(rad);
+	mat[0][2] = sin(rad);
+	mat[2][0] = -sin(rad);
+	mat[2][2] = cos(rad);
+	
+	return mat;
+}
+
+// Rotation over z
+inline Mat4 mat4_rotationZ(double angleZ) {
+	double rad = ofDegToRad(angleZ); // turn degrees to radians
+	
+	// starts as identity matrix
+	Mat4 mat;
+	
+	// apply rotation on z
+	mat[0][0] = cos(rad);
+	mat[0][1] = -sin(rad);
+	mat[1][0] = sin(rad);
+	mat[1][1] = cos(rad);
+	
+	return mat;
+}
+
 // RAYTRACING -----------------------------------------------------------------------------------------------------------------------
 
 // class for every ray p(t) = e + td
@@ -286,6 +359,9 @@ public:
 	// ray parameters, e = origin, d = direction
 	Vec3 e;
 	Vec3 d;
+	
+	// constructor for local-coordinates, we dont normalize direction
+	inline Ray(Vec3 origin, Vec3 direction) : e(origin), d(direction) {}
 	
 	// direction == false --> normalize vector e --> s to keep perspective
 	inline Ray(Vec3 origin, Vec3 sd, bool direction){
@@ -391,12 +467,44 @@ public:
 
 class Object3D{
 public:
+	// Transformations:
+	Mat4 T;
+	Mat4 T_inv;
+	Mat4 N_mat; // transpose(T_inv)
+	double tx, ty, tz; // translation
+	double rx, ry, rz; // rotation
+	double sx, sy, sz; // scaling
+	
+	inline Object3D() {
+		tx = ty = tz = 0.0;
+		rx = ry = rz = 0.0;
+		sx = sy = sz = 1.0;
+		T = Mat4();
+		T_inv = Mat4();
+		N_mat = Mat4();
+	}
+	
 	// destructor
 	inline virtual ~Object3D(){}
 	
-	// we calculate intersection: every shape calculates its own way
+	// intersection: every shape calculates its own way
 	// return: true if ray intersects object, false if not
 	virtual bool hit(const Ray &r, double t_min, double t_max, HitRecord& hr) const = 0;
+	
+	void Transformation(){
+		// individual matrix for each transformation type
+		Mat4 translation = mat4_translation(tx, ty, tz);
+		Mat4 rotX = mat4_rotationX(rx);
+		Mat4 rotY = mat4_rotationY(ry);
+		Mat4 rotZ = mat4_rotationZ(rz);
+		Mat4 scale = mat4_scale(sx, sy, sz);
+		
+		// Transformation = T * R * S ---> in that order
+		T = mat4_product(translation, mat4_product(rotZ, mat4_product(rotY, mat4_product(rotX, scale))));
+		
+		T_inv = mat4_inverse(T);
+		N_mat = mat4_transpose(T_inv);
+	}
 };
 
 // 3D SHAPES ------------------------------------------------------------------------------------------------------------------------
@@ -412,10 +520,14 @@ public:
 	
 	// parameters: Ray: origin --> e, direction ---> d
 	virtual bool hit(const Ray &ra, double t_min, double t_max, HitRecord& hr) const override{
+		// give shape its own local coordinates
+		Vec4 l_origin = mat4_vec4_product(T_inv, Vec4(ra.e.x, ra.e.y, ra.e.z, 1.0));
+		Vec4 l_dir = mat4_vec4_product(T_inv, Vec4(ra.d.x, ra.d.y, ra.d.z, 0.0));
+		Ray l_ray(Vec3(l_origin.x, l_origin.y, l_origin.z), Vec3(l_dir.x, l_dir.y, l_dir.z));
 		
 		// t = (a - e).n / d.n    ---> A = (a - e).n, B = d.n
-		double A = vec3_dotproduct(vec3_subtraction(a, ra.e), normal);
-		double B = vec3_dotproduct(ra.d, normal);
+		double A = vec3_dotproduct(vec3_subtraction(a, l_ray.e), normal);
+		double B = vec3_dotproduct(l_ray.d, normal);
 		
 		// if B = 0, the ray its parallel to the plane (they never intersect)
 		if(abs(B) > 1e-6){ // we use 1e-6 cause some non 0 but close values can also cause errors
@@ -427,9 +539,12 @@ public:
 				// give data to HitRecord
 				hr.t = t;
 				hr.p = ra.evaluate(t);
-				hr.normal = vec3_normal(normal);
 				hr.color = rgb;
-			
+				
+				// give data to local coordinates
+				Vec4 world_n_vec4 = mat4_vec4_product(N_mat, Vec4(normal.x, normal.y, normal.z, 0.0));
+				hr.normal = vec3_normal(Vec3(world_n_vec4.x, world_n_vec4.y, world_n_vec4.z));
+								
 				return true;
 			}
 		}
@@ -445,17 +560,34 @@ public:
 	ofColor rgb;
 	
 	// constructor
-	inline Sphere(Vec3 center, double radius, ofColor color): c(center), r(radius), rgb(color) {}
+	inline Sphere(Vec3 center, double radius, ofColor color): c(center), r(radius), rgb(color) {
+		// translation
+		tx = center.x;
+		ty = center.y;
+		tz = center.z;
+		
+		// scaling
+		sx = radius;
+		sy = radius;
+		sz = radius;
+		
+		Transformation();
+	}
 	
 	// parameters: Ray: origin --> e, direction ---> d
 	virtual bool hit(const Ray &ra, double t_min, double t_max, HitRecord& hr) const override{
+		// give shape its own local coordinates
+		Vec4 l_origin = mat4_vec4_product(T_inv, Vec4(ra.e.x, ra.e.y, ra.e.z, 1.0));
+		Vec4 l_dir = mat4_vec4_product(T_inv, Vec4(ra.d.x, ra.d.y, ra.d.z, 0.0));
+		
+		Ray l_ray(Vec3(l_origin.x, l_origin.y, l_origin.z), Vec3(l_dir.x, l_dir.y, l_dir.z));
 		
 		// components for general formula
-		double A = vec3_dotproduct(ra.d, ra.d);
-		double B = (vec3_dotproduct(ra.d, vec3_subtraction(ra.e, c)))*2;
-		double C = vec3_dotproduct(vec3_subtraction(ra.e, c), vec3_subtraction(ra.e, c)) - (r*r);
+		double A = vec3_dotproduct(l_ray.d, l_ray.d);
+		double B = 2.0 * vec3_dotproduct(l_ray.d, l_ray.e);
+		double C = vec3_dotproduct(l_ray.e, l_ray.e) - 1.0;
 		
-		double discriminant = (B*B)-(4*A*C);
+		double discriminant = (B*B)-(4.0*A*C);
 		
 		// if discriminant is < 0, then we dont hit the sphere
 		if(discriminant < 0){
@@ -479,9 +611,17 @@ public:
 		// give data to HitRecord
 		hr.t = t;
 		hr.p = ra.evaluate(t);
-		// n = (p - c)/Radius           Radius == Magnitude(p - c)
-		hr.normal = vec3_product(vec3_subtraction(hr.p, c), 1.0/r);
 		hr.color = rgb;
+		
+		// n = (p - c)/Radius           Radius == Magnitude(p - c)
+		Vec3 l_p = l_ray.evaluate(t);
+		Vec3 l_normal = l_p;
+			
+		Mat4 n_mat = N_mat; // local normal matrix
+		Vec4 world_n_v4 = mat4_vec4_product(n_mat, Vec4(l_normal.x, l_normal.y, l_normal.z, 0.0)); // world normal
+		
+		// give world normal to hitrecord for shadows
+		hr.normal = vec3_normal(Vec3(world_n_v4.x, world_n_v4.y, world_n_v4.z));
 		
 		// hit
 		return true;
@@ -491,39 +631,35 @@ public:
 
 class Ellipsoid : public Object3D{
 public:
-	Vec3 center; 	// center of the elipsoid
-	Vec3 axes;		// (a, b, c): a = length in x, b = length in y, c = length in z
-	// if(a = b = c) --> Sphere
 	ofColor rgb; 	// color of the ellipsoid
 	
 	// constructor
-	inline Ellipsoid(Vec3 e_center, Vec3 l_xyz, ofColor color) : center(e_center), rgb(color) {
-		// axes cant have zeros
-		if(l_xyz.x == 0) l_xyz.x = 0.0001;
-		if(l_xyz.y == 0) l_xyz.y = 0.0001;
-		if(l_xyz.z == 0) l_xyz.z = 0.0001;
+	inline Ellipsoid(Vec3 e_center, Vec3 l_xyz, ofColor color) : rgb(color) {
+		// translation
+		tx = e_center.x;
+		ty = e_center.y;
+		tz = e_center.z;
 		
-		axes = l_xyz;
+		// scaling
+		sx = l_xyz.x;
+		sy = l_xyz.y;
+		sz = l_xyz.z;
+		
+		Transformation();
 	}
 	
 	// parameters: Ray: origin --> e, direction ---> d
 	virtual bool hit(const Ray &ra, double t_min, double t_max, HitRecord& hr) const override{
+		// give shape its own local coordinates
+		Vec4 l_origin = mat4_vec4_product(T_inv, Vec4(ra.e.x, ra.e.y, ra.e.z, 1.0));
+		Vec4 l_dir = mat4_vec4_product(T_inv, Vec4(ra.d.x, ra.d.y, ra.d.z, 0.0));
 		
-		// axes cant have zeros
-		if(axes.x < 1e-6 or axes.y < 1e-6 or axes.z < 1e-6){
-			return false;
-		}
+		Ray l_ray(Vec3(l_origin.x, l_origin.y, l_origin.z), Vec3(l_dir.x, l_dir.y, l_dir.z));
 		
-		Vec3 w = vec3_subtraction(ra.e, center);
-		Vec3 dr = ra.d;
-		
-		double a2 = 1.0/(axes.x*axes.x);
-		double b2 = 1.0/(axes.y*axes.y);
-		double c2 = 1.0/(axes.z*axes.z);
-		
-		double A = (dr.x*dr.x)*a2 + (dr.y*dr.y)*b2 + (dr.z*dr.z)*c2;
-		double B = 2*((w.x*dr.x)*a2 + (w.y*dr.y)*b2 + (w.z*dr.z)*c2);
-		double C = (w.x*w.x)*a2 + (w.y*w.y)*b2 + (w.z*w.z)*c2 - 1.0;
+		// we treat the ellipsoid as an unitary sphere
+		double A = vec3_dotproduct(l_ray.d, l_ray.d);
+		double B = 2.0 * vec3_dotproduct(l_ray.d, l_ray.e);
+		double C = vec3_dotproduct(l_ray.e, l_ray.e) - 1.0;
 		
 		double discriminant = (B*B)-(4*A*C);
 		
@@ -547,18 +683,18 @@ public:
 		}
 		
 		// give data to HitRecord
-		hr.t = t;
+		hr.t = t; // same in both local and world
 		hr.color = rgb;
 		hr.p = ra.evaluate(t);
 		
-		// n = gradient of function
-		Vec3 gradient;
-		
-		gradient.x = (hr.p.x - center.x)*a2;
-		gradient.y = (hr.p.y - center.y)*b2;
-		gradient.z = (hr.p.z - center.z)*c2;
-		
-		hr.normal = vec3_normal(gradient);
+		Vec3 local_p = l_ray.evaluate(t);
+		Vec3 local_normal = local_p;
+				
+		Mat4 n_mat = N_mat;
+		Vec4 world_n_v4 = mat4_vec4_product(n_mat, Vec4(local_normal.x, local_normal.y, local_normal.z, 0.0));
+				
+		// world normal for shadows
+		hr.normal = vec3_normal(Vec3(world_n_v4.x, world_n_v4.y, world_n_v4.z));
 		
 		// hit
 		return true;
@@ -567,44 +703,59 @@ public:
 
 class Cube : public Object3D{
 public:
-	Vec3 center;
 	ofColor rgb;
 	// cube sizes:
-	double l_x;
-	double l_y;
-	double l_z;
 	Vec3 min_p, max_p;
 	
-	inline Cube(Vec3 c_center, double x, double y, double z, ofColor color): center(c_center), l_x(x), l_y(y), l_z(z), rgb(color){
+	inline Cube(Vec3 c_center, double x, double y, double z, ofColor color): rgb(color){
+		// initial position as traslation
+		tx = c_center.x;
+		ty = c_center.y;
+		tz = c_center.z;
+		
 		// turn lengths into min/max points
-		min_p = vec3_subtraction(center, Vec3(l_x/2.0, l_y/2.0, l_z/2.0));
-		max_p = vec3_sum(center, Vec3(l_x/2.0, l_y/2.0, l_z/2.0));
+		min_p = Vec3(-0.5, -0.5, -0.5);
+		max_p = Vec3(0.5, 0.5, 0.5);
+		
+		// scale of cube
+		sx = x;
+		sy = y;
+		sz = z;
+		
+		min_p = Vec3(-0.5, -0.5, -0.5);
+		max_p = Vec3(0.5, 0.5, 0.5);
+		
+		Transformation();
 	}
 	
 	// parameters: Ray: origin --> e, direction ---> d
 	virtual bool hit(const Ray &ra, double t_min, double t_max, HitRecord& hr) const override{
+		// give shape its own local coordinates
+		Vec4 l_origin = mat4_vec4_product(T_inv, Vec4(ra.e.x, ra.e.y, ra.e.z, 1.0));
+		Vec4 l_dir = mat4_vec4_product(T_inv, Vec4(ra.d.x, ra.d.y, ra.d.z, 0.0));
+		
+		Ray l_ray(Vec3(l_origin.x, l_origin.y, l_origin.z), Vec3(l_dir.x, l_dir.y, l_dir.z));
 		
 		double t_near = -INFINITY;
 		double t_far = INFINITY;
 		
 		// helps us know where we hit so we can know the normal
 		int hit_axis = 0;
-		double d_axis;
 		
-		double d, e, min, max;
 		// check intersections in x(0), y(1) or z(2)
-		for(int i = 0; i < 3; i++){
-			d = ra.d[i];
-			e = ra.e[i];
-			min = min_p[i];
-			max = max_p[i];
+		for (int i = 0; i < 3; i++) {
+			double d = l_ray.d[i];
+			double e = l_ray.e[i];
+			double min_v = min_p[i];
+			double max_v = max_p[i];
+
 			
 			double div_d = 1.0/d; // if(d == 0.0) ---> div_d = inf
 			
 			// point where ray "enters" the cube
-			double t0 = (min - e)*div_d;
+			double t0 = (min_v - e) * div_d;
 			// point where ray "leaves" the cube
-			double t1 = (max - e)*div_d;
+			double t1 = (max_v - e) * div_d;
 			
 			// we are "inside" or "infront" of the cube
 			if(div_d < 0.0) swap(t0, t1);
@@ -632,16 +783,20 @@ public:
 		hr.color = rgb;
 		
 		// normal depends on the plane where the ray hit
-		hr.normal = Vec3(0, 0, 0);
-		if (ra.d[hit_axis] < 0) {
-			if (hit_axis == 0) hr.normal.x = 1;
-			else if (hit_axis == 1) hr.normal.y = 1;
-			else hr.normal.z = 1;
+		Vec3 l_normal(0, 0, 0);
+		if (l_ray.d[hit_axis] < 0) {
+			if (hit_axis == 0) l_normal.x = 1;
+			else if (hit_axis == 1) l_normal.y = 1;
+			else l_normal.z = 1;
 		} else {
-			if (hit_axis == 0) hr.normal.x = -1;
-			else if (hit_axis == 1) hr.normal.y = -1;
-			else hr.normal.z = -1;
+			if (hit_axis == 0) l_normal.x = -1;
+			else if (hit_axis == 1) l_normal.y = -1;
+			else l_normal.z = -1;
 		}
+		
+		// give data to local coordinates
+		Vec4 world_n_vec4 = mat4_vec4_product(N_mat, Vec4(l_normal.x, l_normal.y, l_normal.z, 0.0));
+		hr.normal = vec3_normal(Vec3(world_n_vec4.x, world_n_vec4.y, world_n_vec4.z));
 
 		return true;
 	}

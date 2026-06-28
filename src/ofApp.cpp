@@ -48,7 +48,7 @@ void ofApp::setup() {
 	scene.push_back(new Cube(Vec3(-1.2, 0.0, -3.0), 1.5, 1.5, 1.5, ofColor(0, 255, 0)));
 
 	// Ellipsoid: Blue (0, 0, 1) in z > 0 between z=1 and view plane z = 0
-	scene.push_back(new Ellipsoid(Vec3(0, 0.4, 0.4), Vec3(0.2, 0.1, 0.3), ofColor(0, 0, 255)));
+	//scene.push_back(new Ellipsoid(Vec3(0, 0.4, 0.4), Vec3(0.2, 0.1, 0.3), ofColor(0, 0, 255)));
 	
 	// Ellipsoid: Blue (0, 0, 1) in z > 0 and outside range x:[-2,2], y:[-1.5,1.5]
 	scene.push_back(new Ellipsoid(Vec3(-4, 2, -3), Vec3(1, 2, 1), ofColor(0, 0, 255)));
@@ -196,7 +196,39 @@ void ofApp::keyPressed(int key) {
 		
 		traceAll();
 	}
+	
+	// object translation
+	if (selectedIdx != -1) {
+		double step = 0.1;
+		bool changed = false;
 
+		// Move to the left
+		if (key == OF_KEY_LEFT) {
+			scene[selectedIdx]->tx -= step;
+			changed = true;
+		}
+		// Move to the right
+		else if (key == OF_KEY_RIGHT) {
+			scene[selectedIdx]->tx += step;
+			changed = true;
+		}
+		// Move up
+		else if (key == OF_KEY_UP) {
+			scene[selectedIdx]->ty += step;
+			changed = true;
+		}
+		// Mover down
+		else if (key == OF_KEY_DOWN) {
+			scene[selectedIdx]->ty -= step;
+			changed = true;
+		}
+		
+		// if there was a translation (update)
+		if (changed) {
+			scene[selectedIdx]->Transformation();
+			traceAll();
+		}
+	}
 }
 
 //--------------------------------------------------------------
@@ -216,7 +248,22 @@ void ofApp::mouseDragged(int x, int y, int button) {
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button) {
+	// trace a ray where mouse clicked
+	Ray click_ray = cam.ray_tracing(x, y);
+	HitRecord hrec;
+	double t_min = 0.001;
+	double t_max = INFINITY;
+	int index = 0;
+	selectedIdx = -1; // -1 = no object selected, <= 0 = object selected
 
+	// check if we it an object with our "click ray"
+	for (auto object : scene) {
+		if (object->hit(click_ray, t_min, t_max, hrec)) {
+			t_max = hrec.t;
+			selectedIdx = index;
+		}
+		index++;
+	}
 }
 
 //--------------------------------------------------------------

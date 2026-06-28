@@ -42,8 +42,11 @@ class ofApp : public ofBaseApp{
 		vector<Object3D*> 		scene;
 		ofColor					Background_color;
 	
+		// object interaction
+		int 					selectedIdx;
+	
 		// LIGHT
 		Vec3					li_position;
 		ofColor					li_color;
-		double					ka; //intensity coeficient for light
+		double					ka; // ambient lightning
 };
