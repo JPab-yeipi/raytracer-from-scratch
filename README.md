@@ -14,6 +14,8 @@ Implementation of the core ray tracing algorithms, featuring multiple geometric 
 
 </div>
 
+---
+
 > **Academic Project**
 >
 > This project was developed as part of a university Computer Graphics assignment. The implementation follows the concepts presented in *Fundamentals of Computer Graphics* by Peter Shirley while being written from scratch in C++ using openFrameworks.
