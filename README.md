@@ -40,7 +40,7 @@ The primary goal of this project was to better understand the mathematics and al
 
 # ✨ Features and Technical Highlights:
 
-- ✅ Perspective and Parrallel camera rays
+- ✅ Perspective and Parallel camera rays
 - ✅ Sphere intersection
 - ✅ Ellipsoid intersection
 - ✅ Plane intersection
@@ -55,7 +55,7 @@ The primary goal of this project was to better understand the mathematics and al
 - ✅ Camera orbit
 - ✅ Automatic re-rendering after changes in scene
 - ✅ Render time measurement
-- ✅ Self-build math library --> 3DMath
+- ✅ Self-built math library --> 3DMath
 - ✅ Objects with local coordinates
 
 ---
