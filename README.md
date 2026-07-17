@@ -109,6 +109,12 @@ After finding the closest intersection, the renderer casts a shadow ray toward t
 
 ---
 
+# ❓ How to use it:
+
+To run the project, you first need to install OpenFrameworks. Then, create a new OpenFrameworks app and copy the contents of this repository's `src/` folder into your app's `src/` folder. then, you simply run the code.
+
+---
+
 # 📚 What I learned:
 
 Through this project, I learned how a ray tracer works, from generating rays and detecting intersections to displaying 3D objects on the screen. I also gained more experience working with vectors, transformation matrices, and the mathematics behind 3D graphics.
